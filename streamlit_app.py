@@ -9,12 +9,12 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN & STYLE
 # =================================================================
 st.set_page_config(
-    page_title="Price Intel Indonesia",
-    page_icon="🏪",
+    page_title="Nama Projek",
+    page_icon="📈",
     layout="wide"
 )
 
-# Custom CSS untuk UI Premium
+# Custom CSS untuk UI yang bersih
 st.markdown("""
     <style>
     .main-card {
@@ -74,8 +74,8 @@ if not assets: st.stop()
 # =================================================================
 # 3. HEADER & NAVIGASI
 # =================================================================
-st.title("🏪 Price Intel: Dashboard Prediksi")
-st.markdown("Monitor stabilitas harga pangan nasional berbasis AI.")
+st.title("📈 Nama Projek")
+st.markdown("Sistem prediksi stabilitas harga pangan nasional.")
 
 # Pemilihan Mode
 mode = st.radio("Pilih Mode Analisis:", ["Standard (Input Cepat)", "Advanced (Input Lengkap)"], horizontal=True)
@@ -93,50 +93,43 @@ defaults = {
 }
 
 with st.container():
-    col_input, col_graph = st.columns([1.2, 2])
+    # Menggunakan layout kolom untuk merapikan input tanpa grafik di samping
+    col1, col2 = st.columns(2)
     
-    with col_input:
+    with col1:
         st.subheader("📍 Parameter Utama")
         sel_komo = st.selectbox("Pilih Komoditas", assets['le_komo'].classes_)
         sel_prov = st.selectbox("Pilih Provinsi", assets['le_prov'].classes_)
         sel_date = st.date_input("Target Prediksi", datetime.now())
         
+    with col2:
         st.subheader("💰 Input Harga")
         h_l1 = st.number_input("Harga Kemarin (H-1)", value=15000.0, step=500.0)
         
         if mode == "Standard (Input Cepat)":
-            # Perhitungan otomatis untuk mode standard
             h_l7 = h_l1 - 200.0
             h_l30 = h_l1 - 500.0
-            st.info("💡 Sistem mengisi data Global & Kurs secara otomatis.")
+            st.info("💡 Mode standar menggunakan estimasi otomatis untuk variabel eksternal.")
         else:
             h_l7 = st.number_input("Harga Minggu Lalu (H-7)", value=14800.0)
             h_l30 = st.number_input("Harga Bulan Lalu (H-30)", value=14500.0)
 
-    with col_graph:
-        st.subheader("📈 Visualisasi Tren Input")
-        # Membuat DataFrame untuk grafik tren harga lokal yang dimasukkan user
-        trend_data = pd.DataFrame({
-            "Waktu": ["H-30", "H-7", "H-1"],
-            "Harga (IDR)": [h_l30, h_l7, h_l1]
-        })
-        st.line_chart(trend_data.set_index("Waktu"), height=250)
-        
-        if mode == "Advanced (Input Lengkap)":
-            st.divider()
-            c1, c2 = st.columns(2)
-            with c1:
-                k_usdidr = st.number_input("USD/IDR", value=defaults['kurs_usdidr'])
-                k_myr = st.number_input("MYR/USD", value=defaults['kurs_myrusd'], format="%.4f")
-                g_trend = st.number_input("Google Trend", value=defaults['trend'])
-            with c2:
-                g_oil = st.number_input("Crude Oil", value=defaults['g_oil'])
-                g_palm = st.number_input("Palm Oil", value=defaults['g_palm'])
-                g_wheat = st.number_input("Wheat", value=defaults['g_wheat'])
-            k_sgd, k_thb = defaults['kurs_sgdusd'], defaults['kurs_thbusd']
-        else:
-            k_usdidr, k_myr, k_sgd, k_thb = defaults['kurs_usdidr'], defaults['kurs_myrusd'], defaults['kurs_sgdusd'], defaults['kurs_thbusd']
-            g_oil, g_coal, g_palm, g_wheat, g_trend = defaults['g_oil'], defaults['g_coal'], defaults['g_palm'], defaults['g_wheat'], defaults['trend']
+    if mode == "Advanced (Input Lengkap)":
+        st.divider()
+        st.subheader("🌐 Indikator Ekonomi & Global")
+        adv_col1, adv_col2 = st.columns(2)
+        with adv_col1:
+            k_usdidr = st.number_input("USD/IDR", value=defaults['kurs_usdidr'])
+            k_myr = st.number_input("MYR/USD", value=defaults['kurs_myrusd'], format="%.4f")
+            g_trend = st.number_input("Google Trend", value=defaults['trend'])
+        with adv_col2:
+            g_oil = st.number_input("Crude Oil", value=defaults['g_oil'])
+            g_palm = st.number_input("Palm Oil", value=defaults['g_palm'])
+            g_wheat = st.number_input("Wheat", value=defaults['g_wheat'])
+        k_sgd, k_thb = defaults['kurs_sgdusd'], defaults['kurs_thbusd']
+    else:
+        k_usdidr, k_myr, k_sgd, k_thb = defaults['kurs_usdidr'], defaults['kurs_myrusd'], defaults['kurs_sgdusd'], defaults['kurs_thbusd']
+        g_oil, g_coal, g_palm, g_wheat, g_trend = defaults['g_oil'], defaults['g_coal'], defaults['g_palm'], defaults['g_wheat'], defaults['trend']
 
 # =================================================================
 # 5. EKSEKUSI PREDIKSI
@@ -175,7 +168,7 @@ if st.button("JALANKAN ANALISIS PREDIKSI"):
         </div>
     """, unsafe_allow_html=True)
     
-    # Chart Probabilitas
+    # Chart Probabilitas (Opsional)
     try:
         probs = assets['model'].predict_proba([final_input])[0]
         with st.expander("📊 Lihat Detail Keyakinan Model"):
@@ -185,4 +178,4 @@ if st.button("JALANKAN ANALISIS PREDIKSI"):
         pass
 
 st.divider()
-st.markdown("<p style='text-align: center; color: #999; font-size: 0.8rem;'>© 2024 Price Intel Indonesia </p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #999; font-size: 0.8rem;'>© 2024 Nama Projek</p>", unsafe_allow_html=True)
