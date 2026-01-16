@@ -183,6 +183,4 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
         pass
 
 st.markdown("---")
-st.caption
-
-
+st.caption("© 2024 Prediksi Harga Komoditas. All rights reserved.")
