@@ -149,7 +149,6 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
     
     # 3. Scale Numerik (Harus 14 Fitur)
     # Urutan sesuai scaler: h_l1, h_l7, h_l30, k_myr, k_sgd, k_thb, k_usdidr, g_oil, gas, coal, palm, sugar, wheat, trend
-    # Catatan: g_gas dan g_sugar kita pakai default karena jarang berubah drastis
     num_input = [h_l1, h_l7, h_l30, k_myr, k_sgd, k_thb, k_usdidr, g_oil, defaults['g_gas'], g_coal, g_palm, defaults['g_sugar'], g_wheat, g_trend]
     scaled_num = assets['scaler'].transform([num_input])[0]
     
@@ -184,4 +183,4 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
         pass
 
 st.markdown("---")
-st.caption
+st.caption("© 2024 Price Intel System | Dirancang untuk Kemudahan Pengguna")
