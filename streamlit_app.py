@@ -72,7 +72,7 @@ if not assets: st.stop()
 # =================================================================
 # 3. HEADER & NAVIGASI
 # =================================================================
-st.title("🏪 Price Intel: Prediksi Harga Komoditas")
+st.title("📈 Prediksi Harga Komoditas")
 st.markdown("Analisis cerdas untuk memprediksi stabilitas harga pangan di Indonesia.")
 
 # Pemilihan Mode
@@ -184,4 +184,5 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
 
 st.markdown("---")
 st.caption
+
 
