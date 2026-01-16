@@ -9,8 +9,8 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN & STYLE
 # =================================================================
 st.set_page_config(
-    page_title="Price Intel Indonesia",
-    page_icon="🏪",
+    page_title="",
+    page_icon="📈",
     layout="wide"
 )
 
@@ -183,4 +183,5 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
         pass
 
 st.markdown("---")
-st.caption("© 2024 Price Intel System | Dirancang untuk Kemudahan Pengguna")
+st.caption
+
