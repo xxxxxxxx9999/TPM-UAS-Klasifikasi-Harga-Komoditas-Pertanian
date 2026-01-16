@@ -254,6 +254,21 @@ def decode_category_column(s: pd.Series, encoder) -> pd.Series:
     return s.astype(str)
 
 
+def encode_label_to_id(label: str, encoder) -> int:
+    """Encode label string ke integer sesuai LabelEncoder (komoditas/provinsi)."""
+    lab = str(label).strip().lower()
+    try:
+        return int(encoder.transform([lab])[0])
+    except Exception as e:
+        # tampilkan contoh label yang valid
+        classes = getattr(encoder, "classes_", [])
+        sample = ", ".join([str(x) for x in list(classes)[:10]])
+        raise ValueError(
+            f"Label '{lab}' tidak dikenali encoder. Contoh label valid: {sample}{' ...' if len(classes) > 10 else ''}. Error: {e}"
+        )
+    return s.astype(str)
+
+
 # ----------------------------
 # App
 # ----------------------------
@@ -372,7 +387,7 @@ def main():
 
     mode = st.sidebar.radio(
         "Mode",
-        ["Prediksi 1 Tanggal", "Analisis Rentang", "Batch (Upload fitur)"],
+        ["Prediksi 1 Tanggal", "Analisis Rentang", "Input Manual", "Batch (Upload fitur)"],
         index=0,
     )
 
@@ -618,7 +633,199 @@ def main():
         )
 
     # ----------------------------
-    # Mode 3: Batch upload
+    # Mode 3: Manual input
+    # ----------------------------
+    elif mode == "Input Manual":
+        st.subheader("🧮 Input Manual Fitur")
+        st.caption(
+            "Isi nilai fitur secara manual. Untuk **komoditas/provinsi**, pilih label (akan otomatis di-encode). "
+            "Pastikan nilai fitur sesuai skala yang dipakai saat training."
+        )
+
+        # Prefill defaults dari dataset yang sedang terbaca (kalau ada), biar user nggak mulai dari nol
+        defaults: Dict[str, float] = {}
+        for c in feat_list:
+            if c in df.columns and pd.api.types.is_numeric_dtype(df[c]):
+                v = df[c].replace([np.inf, -np.inf], np.nan).dropna()
+                if len(v) > 0:
+                    defaults[c] = float(v.median())
+
+        # Form input
+        with st.form("manual_form"):
+            left, right = st.columns([1.1, 1])
+
+            # --- Categorical & time features (lebih nyaman pakai pilihan)
+            with left:
+                st.markdown("**Kategori & Waktu**")
+
+                manual_values: Dict[str, float] = {}
+
+                # Komoditas
+                if "komoditas" in feat_list:
+                    kom_classes = [str(x).lower() for x in getattr(kom_enc, "classes_", [])]
+                    kom_in = st.selectbox("Komoditas", kom_classes, index=0 if kom_classes else None)
+                    if kom_in is not None:
+                        manual_values["komoditas"] = encode_label_to_id(kom_in, kom_enc)
+
+                # Provinsi
+                if "provinsi" in feat_list:
+                    prov_classes = [str(x).lower() for x in getattr(prov_enc, "classes_", [])]
+                    prov_in = st.selectbox("Provinsi", prov_classes, index=0 if prov_classes else None)
+                    if prov_in is not None:
+                        manual_values["provinsi"] = encode_label_to_id(prov_in, prov_enc)
+
+                # Optional helper: pilih tanggal lalu auto-isi fitur waktu
+                use_date_helper = st.toggle("Gunakan helper tanggal (auto isi fitur waktu)", value=True)
+                picked_date = None
+                if use_date_helper:
+                    picked_date = st.date_input("Tanggal (opsional)")
+                    dts = pd.Timestamp(picked_date)
+                    # isi fitur waktu yang ada di feat_list
+                    if "year" in feat_list:
+                        manual_values["year"] = int(dts.year)
+                    if "month" in feat_list:
+                        manual_values["month"] = int(dts.month)
+                    if "day" in feat_list:
+                        manual_values["day"] = int(dts.day)
+                    if "week" in feat_list:
+                        # week of year
+                        manual_values["week"] = int(dts.isocalendar().week)
+                    if "day_of_week" in feat_list:
+                        manual_values["day_of_week"] = int(dts.dayofweek)
+
+                # Kalau helper off, tampilkan input manual untuk fitur waktu
+                if not use_date_helper:
+                    if "year" in feat_list:
+                        manual_values["year"] = st.number_input("year", value=int(defaults.get("year", 2023)), step=1)
+                    if "month" in feat_list:
+                        manual_values["month"] = st.number_input("month", value=int(defaults.get("month", 1)), min_value=1, max_value=12, step=1)
+                    if "week" in feat_list:
+                        manual_values["week"] = st.number_input("week", value=int(defaults.get("week", 1)), min_value=1, max_value=53, step=1)
+                    if "day" in feat_list:
+                        manual_values["day"] = st.number_input("day", value=int(defaults.get("day", 1)), min_value=1, max_value=31, step=1)
+                    if "day_of_week" in feat_list:
+                        manual_values["day_of_week"] = st.number_input("day_of_week", value=int(defaults.get("day_of_week", 0)), min_value=0, max_value=6, step=1)
+
+            # --- Numeric feature groups
+            with right:
+                st.markdown("**Fitur Numerik**")
+
+                # Group columns
+                lag_cols = [c for c in feat_list if c.lower().startswith("lag_") or "rolling" in c.lower()]
+                ext_cols = [c for c in feat_list if c.lower().startswith("kurs_") or c.lower().startswith("global_") or "google_trend" in c.lower() or c.lower().startswith("trend_")]
+                other_cols = [c for c in feat_list if c not in lag_cols + ext_cols + ["komoditas", "provinsi", "year", "month", "week", "day", "day_of_week"]]
+
+                with st.expander("Lag & Rolling", expanded=True):
+                    for c in lag_cols:
+                        manual_values[c] = st.number_input(
+                            c,
+                            value=float(defaults.get(c, 0.0)),
+                            step=1.0,
+                            format="%.6f",
+                        )
+
+                with st.expander("Eksternal (Kurs/Global/Trend)", expanded=True):
+                    for c in ext_cols:
+                        manual_values[c] = st.number_input(
+                            c,
+                            value=float(defaults.get(c, 0.0)),
+                            step=0.1,
+                            format="%.6f",
+                        )
+
+                if other_cols:
+                    with st.expander("Lainnya", expanded=False):
+                        for c in other_cols:
+                            manual_values[c] = st.number_input(
+                                c,
+                                value=float(defaults.get(c, 0.0)),
+                                step=1.0,
+                                format="%.6f",
+                            )
+
+            submitted = st.form_submit_button("Prediksi")
+
+        if not submitted:
+            st.stop()
+
+        # Build one-row dataframe with the exact feature order
+        row_dict = {c: manual_values.get(c, defaults.get(c, 0.0)) for c in feat_list}
+        one = pd.DataFrame([row_dict])
+
+        # Predict
+        try:
+            X = build_X(one, feat_list, scaler)
+        except Exception as e:
+            st.error(f"Gagal membangun X untuk prediksi manual: {e}")
+            st.stop()
+
+        pred, proba = predict_with_proba(model, X)
+        pred_id = int(pred[0])
+        try:
+            pred_label = y_enc.inverse_transform([pred_id])[0]
+        except Exception:
+            pred_label = str(pred_id)
+
+        confidence = None
+        proba_df = None
+        if proba is not None:
+            probs = proba[0]
+            confidence = float(np.max(probs))
+            try:
+                labels = list(y_enc.inverse_transform(np.arange(len(probs))))
+            except Exception:
+                labels = [str(i) for i in range(len(probs))]
+            proba_df = (
+                pd.DataFrame({"Label": labels, "Probabilitas": probs})
+                .sort_values("Probabilitas", ascending=False)
+                .reset_index(drop=True)
+            )
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            _kpi("Prediksi Level", f"<span class='pill'>{pred_label}</span>", "")
+        with c2:
+            _kpi("Class ID", str(pred_id), "")
+        with c3:
+            _kpi("Confidence", _fmt_float(confidence, 3) if confidence is not None else "-", "max probability")
+
+        t1, t2 = st.tabs(["🎯 Probabilitas", "🧾 Input fitur"]) 
+        with t1:
+            if proba_df is None:
+                st.info("Model ini tidak menyediakan `predict_proba`. (Masih bisa prediksi label.)")
+            else:
+                chart = (
+                    alt.Chart(proba_df)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("Probabilitas:Q", title="Probabilitas"),
+                        y=alt.Y("Label:N", sort="-x", title="Kelas"),
+                        tooltip=["Label", alt.Tooltip("Probabilitas:Q", format=".4f")],
+                    )
+                )
+                st.altair_chart(chart, use_container_width=True)
+                st.dataframe(proba_df, use_container_width=True)
+
+        with t2:
+            view = one.T.reset_index()
+            view.columns = ["Fitur", "Nilai"]
+            st.dataframe(view, use_container_width=True, height=520)
+
+        out = one.copy()
+        out["predicted_class_id"] = pred_id
+        out["predicted_label"] = pred_label
+        if confidence is not None:
+            out["confidence"] = confidence
+
+        st.download_button(
+            "⬇️ Download hasil (CSV)",
+            data=out.to_csv(index=False).encode("utf-8"),
+            file_name="prediction_manual.csv",
+            mime="text/csv",
+        )
+
+    # ----------------------------
+    # Mode 4: Batch upload
     # ----------------------------
     else:
         st.info(
