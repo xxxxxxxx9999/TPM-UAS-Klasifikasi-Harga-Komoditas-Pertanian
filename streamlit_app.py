@@ -6,169 +6,182 @@ import os
 from datetime import datetime
 
 # =================================================================
-# 1. KONFIGURASI HALAMAN
+# 1. KONFIGURASI HALAMAN & STYLE
 # =================================================================
 st.set_page_config(
-    page_title="Prediksi Tingkat Harga Komoditas",
-    page_icon="📈",
+    page_title="Price Intel Indonesia",
+    page_icon="🏪",
     layout="wide"
 )
 
-# Custom CSS untuk memastikan teks di kotak hasil selalu terlihat
+# Custom CSS untuk UI Premium
 st.markdown("""
     <style>
-    .result-box {
-        padding: 40px;
-        border-radius: 15px;
-        text-align: center;
-        margin: 20px 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    .main-card {
+        padding: 30px;
+        border-radius: 20px;
+        background-color: #ffffff;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        border: 1px solid #f0f2f6;
+        margin-bottom: 20px;
     }
-    .result-label {
-        font-size: 50px;
+    .stButton>button {
+        width: 100%;
+        border-radius: 10px;
+        height: 3em;
         font-weight: bold;
-        margin: 0;
-        text-transform: uppercase;
     }
-    .result-text {
-        color: #333333 !important; /* Memaksa warna teks gelap agar kontras */
-        font-family: sans-serif;
+    .result-header {
+        font-size: 1.2rem;
+        color: #666;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+    .result-value {
+        font-size: 4rem;
+        font-weight: 900;
+        text-align: center;
+        margin: 0;
+        line-height: 1;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # =================================================================
-# 2. LOAD ARTEFAK MODEL (CACHED)
+# 2. LOAD ARTEFAK
 # =================================================================
 @st.cache_resource
-def load_artifacts():
+def load_model_assets():
     path = 'artifacts/'
     try:
         return {
             'model': joblib.load(os.path.join(path, 'best_model.pkl')),
             'scaler': joblib.load(os.path.join(path, 'scaler.pkl')),
-            'le_komoditas': joblib.load(os.path.join(path, 'komoditas_encoder.pkl')),
-            'le_provinsi': joblib.load(os.path.join(path, 'provinsi_encoder.pkl')),
-            'target_encoder': joblib.load(os.path.join(path, 'target_encoder.pkl')),
-            'features': joblib.load(os.path.join(path, 'feature_list.pkl'))
+            'le_komo': joblib.load(os.path.join(path, 'komoditas_encoder.pkl')),
+            'le_prov': joblib.load(os.path.join(path, 'provinsi_encoder.pkl')),
+            'target_enc': joblib.load(os.path.join(path, 'target_encoder.pkl')),
+            'feat_list': joblib.load(os.path.join(path, 'feature_list.pkl'))
         }
     except Exception as e:
-        st.error(f"Gagal memuat artefak: {e}")
+        st.error(f"Gagal memuat sistem: {e}")
         return None
 
-artifacts = load_artifacts()
-
-if not artifacts:
-    st.stop()
+assets = load_model_assets()
+if not assets: st.stop()
 
 # =================================================================
-# 3. ANTARMUKA PENGGUNA (UI)
+# 3. HEADER & NAVIGASI
 # =================================================================
-st.title("📈 Dashboard Prediksi Harga Komoditas")
-st.info("Sistem ini memprediksi level harga (Rendah, Sedang, Tinggi)")
+st.title("🏪 Price Intel: Prediksi Harga Komoditas")
+st.markdown("Analisis cerdas untuk memprediksi stabilitas harga pangan di Indonesia.")
 
-# --- SIDEBAR UNTUK INPUT ---
-st.sidebar.header("⚙️ Konfigurasi Input")
+# Pemilihan Mode
+mode = st.radio("Pilih Mode Input:", ["Standard (Cepat & Lokal)", "Advanced (Full Parameter)"], horizontal=True)
 
-# Kategori
-selected_komo = st.sidebar.selectbox("Jenis Komoditas", artifacts['le_komoditas'].classes_)
-selected_prov = st.sidebar.selectbox("Wilayah Provinsi", artifacts['le_provinsi'].classes_)
-selected_date = st.sidebar.date_input("Tanggal Prediksi", datetime.now())
-
-# Parameter Numerik (Membagi kolom agar hemat ruang)
-st.sidebar.subheader("📊 Data Indikator")
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("📍 Data Lokal")
-    h_lag_1 = st.number_input("Harga Kemarin (H-1)", value=15000)
-    h_lag_7 = st.number_input("Harga H-7", value=14800)
-    h_lag_30 = st.number_input("Harga H-30", value=14500)
-    g_trend = st.number_input("Google Trend (0-100)", value=50.0)
-    
-    st.subheader("💹 Kurs Valuta")
-    k_usdidr = st.number_input("USD to IDR", value=15600)
-    k_myr = st.number_input("MYR to USD", value=0.21, format="%.4f")
-    k_sgd = st.number_input("SGD to USD", value=0.74, format="%.4f")
-    k_thb = st.number_input("THB to USD", value=0.028, format="%.4f")
-
-with col2:
-    st.subheader("🌎 Indikator Global")
-    g_oil = st.number_input("Minyak Mentah (Crude Oil)", value=80.0)
-    g_gas = st.number_input("Gas Alam", value=2.5)
-    g_coal = st.number_input("Batu Bara (Coal)", value=130.0)
-    g_palm = st.number_input("Minyak Sawit (CPO)", value=900.0)
-    g_sugar = st.number_input("Gula Dunia", value=0.20, format="%.4f")
-    g_wheat = st.number_input("Gandum Dunia", value=600.0)
+st.divider()
 
 # =================================================================
-# 4. LOGIKA PREDIKSI
+# 4. FORM INPUT BERDASARKAN MODE
 # =================================================================
-if st.button("🚀 JALANKAN PREDIKSI", type="primary", use_container_width=True):
+
+# Nilai Default untuk Mode Standard (Latar Belakang)
+defaults = {
+    'kurs_usdidr': 15600.0, 'kurs_myrusd': 0.21, 'kurs_sgdusd': 0.74, 'kurs_thbusd': 0.028,
+    'g_oil': 80.0, 'g_gas': 2.5, 'g_coal': 130.0, 'g_palm': 900.0, 'g_sugar': 0.20, 'g_wheat': 600.0,
+    'trend': 50.0
+}
+
+with st.container():
+    col_main1, col_main2 = st.columns([1, 2])
     
-    # A. Preprocessing: Fitur Waktu
-    month = selected_date.month
-    day = selected_date.day
-    week = selected_date.isocalendar()[1]
-    day_of_week = selected_date.weekday()
+    with col_main1:
+        st.subheader("📍 Data Utama")
+        sel_komo = st.selectbox("Komoditas", assets['le_komo'].classes_)
+        sel_prov = st.selectbox("Provinsi", assets['le_prov'].classes_)
+        sel_date = st.date_input("Tanggal Prediksi", datetime.now())
+        
+        st.subheader("💰 Harga Historis")
+        h_l1 = st.number_input("Harga Kemarin (H-1)", value=15000.0, step=500.0)
+        
+        if mode == "Standard (Cepat & Lokal)":
+            # Mode Sederhana: Lag 7 dan 30 otomatis mendekati Lag 1 jika tidak diisi
+            h_l7 = h_l1 - 200.0
+            h_l30 = h_l1 - 500.0
+            st.caption("ℹ️ Mode Standar menggunakan estimasi otomatis untuk data global & kurs.")
+        else:
+            h_l7 = st.number_input("Harga Minggu Lalu (H-7)", value=14800.0)
+            h_l30 = st.number_input("Harga Bulan Lalu (H-30)", value=14500.0)
 
-    # B. Preprocessing: Encoding Kategorikal
-    enc_komo = artifacts['le_komoditas'].transform([selected_komo])[0]
-    enc_prov = artifacts['le_provinsi'].transform([selected_prov])[0]
+    with col_main2:
+        if mode == "Advanced (Full Parameter)":
+            st.subheader("🌐 Indikator Ekonomi & Global")
+            c1, c2 = st.columns(2)
+            with c1:
+                k_usdidr = st.number_input("USD/IDR", value=defaults['kurs_usdidr'])
+                k_myr = st.number_input("MYR/USD", value=defaults['kurs_myrusd'], format="%.4f")
+                k_sgd = st.number_input("SGD/USD", value=defaults['kurs_sgdusd'], format="%.4f")
+                k_thb = st.number_input("THB/USD", value=defaults['kurs_thbusd'], format="%.4f")
+                g_trend = st.number_input("Google Trend", value=defaults['trend'])
+            with c2:
+                g_oil = st.number_input("Crude Oil", value=defaults['g_oil'])
+                g_coal = st.number_input("Coal", value=defaults['g_coal'])
+                g_palm = st.number_input("CPO (Minyak Sawit)", value=defaults['g_palm'])
+                g_wheat = st.number_input("Gandum", value=defaults['g_wheat'])
+        else:
+            # Menggunakan nilai default jika di mode standard
+            k_usdidr, k_myr, k_sgd, k_thb = defaults['kurs_usdidr'], defaults['kurs_myrusd'], defaults['kurs_sgdusd'], defaults['kurs_thbusd']
+            g_oil, g_coal, g_palm, g_wheat, g_trend = defaults['g_oil'], defaults['g_coal'], defaults['g_palm'], defaults['g_wheat'], defaults['trend']
+            
+            # Tampilan visual pengganti di mode standard
+            st.info("💡 **Mode Standard Aktif**\n\nSistem akan memproses prediksi menggunakan variabel harga lokal yang Anda masukkan dan memadukannya dengan rata-rata indikator pasar global saat ini.")
+            st.image("https://img.freemarket.com/vectors/market-analysis-concept_23-2148560000.jpg", use_container_width=True, caption="Analisis Pasar Otomatis")
 
-    # C. Preprocessing: Scaling Numerikal (Urutan harus sesuai scaler)
-    num_vals = [
-        h_lag_1, h_lag_7, h_lag_30, 
-        k_myr, k_sgd, k_thb, k_usdidr,
-        g_oil, g_gas, g_coal, g_palm, g_sugar, g_wheat, g_trend
-    ]
-    scaled_vals = artifacts['scaler'].transform([num_vals])[0]
-
-    # D. Gabungkan Menjadi 20 Fitur Sesuai feature_list.pkl
-    # Urutan: [komoditas, provinsi, month, week, day, day_of_week] + [14 numerik]
-    input_final = [enc_komo, enc_prov, month, week, day, day_of_week] + list(scaled_vals)
+# =================================================================
+# 5. EKSEKUSI PREDIKSI
+# =================================================================
+if st.button("CEK PREDIKSI HARGA", type="primary"):
+    # 1. Waktu
+    m, d, w, dow = sel_date.month, sel_date.day, sel_date.isocalendar()[1], sel_date.weekday()
     
-    # E. Jalankan Prediksi
-    pred_idx = artifacts['model'].predict([input_final])[0]
-    label = artifacts['target_encoder'].classes_[pred_idx]
-
-    # F. Visualisasi Hasil
-    st.markdown("---")
+    # 2. Encode
+    e_komo = assets['le_komo'].transform([sel_komo])[0]
+    e_prov = assets['le_prov'].transform([sel_prov])[0]
     
-    # Logika Warna
-    if label == "Tinggi":
-        bg, border, text_color = "#fef2f2", "#dc2626", "#dc2626"
-    elif label == "Sedang":
-        bg, border, text_color = "#fffbeb", "#d97706", "#d97706"
-    else:
-        bg, border, text_color = "#f0fdf4", "#16a34a", "#16a34a"
+    # 3. Scale Numerik (Harus 14 Fitur)
+    # Urutan sesuai scaler: h_l1, h_l7, h_l30, k_myr, k_sgd, k_thb, k_usdidr, g_oil, gas, coal, palm, sugar, wheat, trend
+    # Catatan: g_gas dan g_sugar kita pakai default karena jarang berubah drastis
+    num_input = [h_l1, h_l7, h_l30, k_myr, k_sgd, k_thb, k_usdidr, g_oil, defaults['g_gas'], g_coal, g_palm, defaults['g_sugar'], g_wheat, g_trend]
+    scaled_num = assets['scaler'].transform([num_input])[0]
+    
+    # 4. Final Input (20 fitur)
+    final_input = [e_komo, e_prov, m, w, d, dow] + list(scaled_num)
+    
+    # 5. Predict
+    res_idx = assets['model'].predict([final_input])[0]
+    label = assets['target_enc'].classes_[res_idx]
+    
+    # 6. Tampilan Hasil UI Pro
+    colors = {"Tinggi": ("#FF4B4B", "#FFF5F5"), "Sedang": ("#FFA500", "#FFF9EE"), "Rendah": ("#28A745", "#F2FFF5")}
+    main_color, bg_color = colors.get(label, ("#333", "#eee"))
 
-    # Menampilkan Kotak Hasil
     st.markdown(f"""
-        <div class="result-box" style="background-color: {bg}; border: 4px solid {border};">
-            <p class="result-text" style="font-size: 20px; margin: 0;">Prediksi Tingkat Harga:</p>
-            <h1 class="result-label" style="color: {text_color};">{label}</h1>
-            <div style="height: 2px; background: {border}; width: 100px; margin: 15px auto;"></div>
-            <p class="result-text" style="font-size: 16px;">
-                <b>{selected_komo}</b> di <b>{selected_prov}</b><br>
-                Target: {selected_date.strftime('%d %B %Y')}
+        <div class="main-card" style="background-color: {bg_color}; border-top: 10px solid {main_color};">
+            <p class="result-header">Estimasi Tingkat Harga untuk {sel_komo}</p>
+            <p class="result-value" style="color: {main_color};">{label.upper()}</p>
+            <p style="text-align: center; color: #555; margin-top: 15px;">
+                Wilayah: <b>{sel_prov}</b> | Prediksi Tanggal: <b>{sel_date.strftime('%d %B %Y')}</b>
             </p>
         </div>
     """, unsafe_allow_html=True)
-
-    # Probabilitas Chart
+    
+    # Chart Probabilitas
     try:
-        probs = artifacts['model'].predict_proba([input_final])[0]
-        st.subheader("📊 Analisis Probabilitas")
-        prob_df = pd.DataFrame({
-            'Level': artifacts['target_encoder'].classes_,
-            'Keyakinan (%)': [p * 100 for p in probs]
-        })
-        st.bar_chart(prob_df.set_index('Level'))
+        probs = assets['model'].predict_proba([final_input])[0]
+        with st.expander("Lihat Detail Probabilitas"):
+            p_df = pd.DataFrame({'Level': assets['target_enc'].classes_, 'Confidence (%)': probs*100})
+            st.bar_chart(p_df.set_index('Level'))
     except:
         pass
 
-# Footer
 st.markdown("---")
-st.caption("Deployment Selesai | Dikembangkan untuk Analisis Harga Komoditas Indonesia")
-
+st.caption
