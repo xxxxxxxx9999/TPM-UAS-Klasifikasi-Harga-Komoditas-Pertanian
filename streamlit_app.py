@@ -65,7 +65,7 @@ if not artifacts:
 # 3. ANTARMUKA PENGGUNA (UI)
 # =================================================================
 st.title("📈 Dashboard Prediksi Harga Komoditas")
-st.info("Sistem ini memprediksi level harga (Rendah, Sedang, Tinggi) menggunakan AI berdasarkan indikator pasar.")
+st.info("Sistem ini memprediksi level harga (Rendah, Sedang, Tinggi)")
 
 # --- SIDEBAR UNTUK INPUT ---
 st.sidebar.header("⚙️ Konfigurasi Input")
@@ -81,13 +81,13 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📍 Data Lokal")
-    h_lag_1 = st.number_input("Harga Kemarin (H-1)", value=15000.0)
-    h_lag_7 = st.number_input("Harga H-7", value=14800.0)
-    h_lag_30 = st.number_input("Harga H-30", value=14500.0)
+    h_lag_1 = st.number_input("Harga Kemarin (H-1)", value=15000)
+    h_lag_7 = st.number_input("Harga H-7", value=14800)
+    h_lag_30 = st.number_input("Harga H-30", value=14500)
     g_trend = st.number_input("Google Trend (0-100)", value=50.0)
     
     st.subheader("💹 Kurs Valuta")
-    k_usdidr = st.number_input("USD to IDR", value=15600.0)
+    k_usdidr = st.number_input("USD to IDR", value=15600)
     k_myr = st.number_input("MYR to USD", value=0.21, format="%.4f")
     k_sgd = st.number_input("SGD to USD", value=0.74, format="%.4f")
     k_thb = st.number_input("THB to USD", value=0.028, format="%.4f")
@@ -171,3 +171,4 @@ if st.button("🚀 JALANKAN PREDIKSI", type="primary", use_container_width=True)
 # Footer
 st.markdown("---")
 st.caption("Deployment Selesai | Dikembangkan untuk Analisis Harga Komoditas Indonesia")
+
