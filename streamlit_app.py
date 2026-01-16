@@ -597,5 +597,3 @@ with tab_about:
             fig = px.bar(imp, x="Importance", y="Fitur", orientation="h")
             fig.update_layout(height=520, margin=dict(l=20, r=20, t=10, b=20))
             st.plotly_chart(fig, use_container_width=True)
-
-    st.info("Tip: kalau kamu simpan pkl di folder lain, set environment variable `ARTIFACT_DIR` di Streamlit Cloud.")
