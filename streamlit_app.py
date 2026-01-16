@@ -9,7 +9,7 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN & STYLE
 # =================================================================
 st.set_page_config(
-    page_title="",
+    page_title="Prediksi Harga Komoditas",
     page_icon="📈",
     layout="wide"
 )
@@ -104,10 +104,10 @@ with st.container():
         h_l1 = st.number_input("Harga Kemarin (H-1)", value=15000.0, step=500.0)
         
         if mode == "Standard (Cepat & Lokal)":
-            # Mode Sederhana: Lag 7 dan 30 otomatis mendekati Lag 1 jika tidak diisi
+            # Mode Sederhana: Estimasi otomatis
             h_l7 = h_l1 - 200.0
             h_l30 = h_l1 - 500.0
-            st.caption("ℹ️ Mode Standar menggunakan estimasi otomatis untuk data global & kurs.")
+            st.info("ℹ️ Mode Standar menggunakan estimasi otomatis untuk data global & kurs.")
         else:
             h_l7 = st.number_input("Harga Minggu Lalu (H-7)", value=14800.0)
             h_l30 = st.number_input("Harga Bulan Lalu (H-30)", value=14500.0)
@@ -133,8 +133,12 @@ with st.container():
             g_oil, g_coal, g_palm, g_wheat, g_trend = defaults['g_oil'], defaults['g_coal'], defaults['g_palm'], defaults['g_wheat'], defaults['trend']
             
             # Tampilan visual pengganti di mode standard
-            st.info("💡 **Mode Standard Aktif**\n\nSistem akan memproses prediksi menggunakan variabel harga lokal yang Anda masukkan dan memadukannya dengan rata-rata indikator pasar global saat ini.")
-            st.image("https://img.freemarket.com/vectors/market-analysis-concept_23-2148560000.jpg", use_container_width=True, caption="Analisis Pasar Otomatis")
+            st.info("💡 **Mode Standard Aktif**\n\nSistem memproses prediksi menggunakan variabel harga lokal dan memadukannya dengan indikator pasar global saat ini.")
+            
+            # Menggunakan Gambar dari Unsplash yang lebih stabil (Pasar/Sayuran Indonesia)
+            st.image("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1000", 
+                     caption="Analisis Pasar Otomatis Teraktifkan", 
+                     use_container_width=True)
 
 # =================================================================
 # 5. EKSEKUSI PREDIKSI
@@ -147,12 +151,12 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
     e_komo = assets['le_komo'].transform([sel_komo])[0]
     e_prov = assets['le_prov'].transform([sel_prov])[0]
     
-    # 3. Scale Numerik (Harus 14 Fitur)
+    # 3. Scale Numerik
     # Urutan sesuai scaler: h_l1, h_l7, h_l30, k_myr, k_sgd, k_thb, k_usdidr, g_oil, gas, coal, palm, sugar, wheat, trend
     num_input = [h_l1, h_l7, h_l30, k_myr, k_sgd, k_thb, k_usdidr, g_oil, defaults['g_gas'], g_coal, g_palm, defaults['g_sugar'], g_wheat, g_trend]
     scaled_num = assets['scaler'].transform([num_input])[0]
     
-    # 4. Final Input (20 fitur)
+    # 4. Final Input
     final_input = [e_komo, e_prov, m, w, d, dow] + list(scaled_num)
     
     # 5. Predict
@@ -183,4 +187,4 @@ if st.button("CEK PREDIKSI HARGA", type="primary"):
         pass
 
 st.markdown("---")
-st.caption("© 2024 Prediksi Harga Komoditas. All rights reserved.")
+st.markdown("<p style='text-align: center; color: #999; font-size: 0.8rem;'>© 2024 Prediksi Harga Komoditas. All rights reserved.</p>", unsafe_allow_html=True)
