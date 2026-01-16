@@ -5,135 +5,169 @@ import joblib
 import os
 from datetime import datetime
 
-# Konfigurasi Halaman
+# =================================================================
+# 1. KONFIGURASI HALAMAN
+# =================================================================
 st.set_page_config(
-    page_title="Price Level Predictor",
+    page_title="Prediksi Tingkat Harga Komoditas",
     page_icon="📈",
     layout="wide"
 )
 
-# Judul Aplikasi
-st.title("📈 Dashboard Prediksi Tingkat Harga Komoditas")
+# Custom CSS untuk memastikan teks di kotak hasil selalu terlihat
 st.markdown("""
-Aplikasi ini memprediksi tingkat harga komoditas (Rendah, Sedang, Tinggi) berdasarkan data historis, 
-kurs mata uang, dan tren pasar global.
-""")
+    <style>
+    .result-box {
+        padding: 40px;
+        border-radius: 15px;
+        text-align: center;
+        margin: 20px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .result-label {
+        font-size: 50px;
+        font-weight: bold;
+        margin: 0;
+        text-transform: uppercase;
+    }
+    .result-text {
+        color: #333333 !important; /* Memaksa warna teks gelap agar kontras */
+        font-family: sans-serif;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Fungsi untuk memuat artefak
+# =================================================================
+# 2. LOAD ARTEFAK MODEL (CACHED)
+# =================================================================
 @st.cache_resource
 def load_artifacts():
     path = 'artifacts/'
-    artifacts = {
-        'model': joblib.load(os.path.join(path, 'best_model.pkl')),
-        'scaler': joblib.load(os.path.join(path, 'scaler.pkl')),
-        'le_komoditas': joblib.load(os.path.join(path, 'komoditas_encoder.pkl')),
-        'le_provinsi': joblib.load(os.path.join(path, 'provinsi_encoder.pkl')),
-        'target_encoder': joblib.load(os.path.join(path, 'target_encoder.pkl')),
-        'feature_list': joblib.load(os.path.join(path, 'feature_list.pkl'))
-    }
-    return artifacts
+    try:
+        return {
+            'model': joblib.load(os.path.join(path, 'best_model.pkl')),
+            'scaler': joblib.load(os.path.join(path, 'scaler.pkl')),
+            'le_komoditas': joblib.load(os.path.join(path, 'komoditas_encoder.pkl')),
+            'le_provinsi': joblib.load(os.path.join(path, 'provinsi_encoder.pkl')),
+            'target_encoder': joblib.load(os.path.join(path, 'target_encoder.pkl')),
+            'features': joblib.load(os.path.join(path, 'feature_list.pkl'))
+        }
+    except Exception as e:
+        st.error(f"Gagal memuat artefak: {e}")
+        return None
 
-try:
-    art = load_artifacts()
-    st.sidebar.success("✅ Model & Artefak berhasil dimuat")
-except Exception as e:
-    st.error(f"❌ Gagal memuat artefak: {e}")
+artifacts = load_artifacts()
+
+if not artifacts:
     st.stop()
 
-# --- SIDEBAR: INPUT USER ---
-st.sidebar.header("Input Parameter")
+# =================================================================
+# 3. ANTARMUKA PENGGUNA (UI)
+# =================================================================
+st.title("📈 Dashboard Prediksi Harga Komoditas")
+st.info("Sistem ini memprediksi level harga (Rendah, Sedang, Tinggi) menggunakan AI berdasarkan indikator pasar.")
 
-# 1. Input Kategori
-selected_komoditas = st.sidebar.selectbox("Pilih Komoditas", art['le_komoditas'].classes_)
-selected_provinsi = st.sidebar.selectbox("Pilih Provinsi", art['le_provinsi'].classes_)
+# --- SIDEBAR UNTUK INPUT ---
+st.sidebar.header("⚙️ Konfigurasi Input")
 
-# 2. Input Tanggal (untuk ekstraksi fitur waktu)
-selected_date = st.sidebar.date_input("Pilih Tanggal Prediksi", datetime.now())
+# Kategori
+selected_komo = st.sidebar.selectbox("Jenis Komoditas", artifacts['le_komoditas'].classes_)
+selected_prov = st.sidebar.selectbox("Wilayah Provinsi", artifacts['le_provinsi'].classes_)
+selected_date = st.sidebar.date_input("Tanggal Prediksi", datetime.now())
 
-# 3. Input Numerik (Harga & Global)
-st.sidebar.subheader("Data Pasar & Global")
-
-# Membagi kolom agar rapi
+# Parameter Numerik (Membagi kolom agar hemat ruang)
+st.sidebar.subheader("📊 Data Indikator")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Data Harga Lokal")
-    harga_lag_1 = st.number_input("Harga H-1 (IDR)", value=15000.0)
-    harga_lag_7 = st.number_input("Harga H-7 (IDR)", value=14800.0)
-    harga_lag_30 = st.number_input("Harga H-30 (IDR)", value=14500.0)
-    google_trend = st.number_input("Skor Google Trend", value=50.0)
-
-    st.subheader("Kurs Mata Uang")
-    kurs_usdidr = st.number_input("USD/IDR", value=15600.0)
-    kurs_myrusd = st.number_input("MYR/USD", value=0.21)
-    kurs_sgdusd = st.number_input("SGD/USD", value=0.74)
-    kurs_thbusd = st.number_input("THB/USD", value=0.028)
+    st.subheader("📍 Data Lokal")
+    h_lag_1 = st.number_input("Harga Kemarin (H-1)", value=15000.0)
+    h_lag_7 = st.number_input("Harga H-7", value=14800.0)
+    h_lag_30 = st.number_input("Harga H-30", value=14500.0)
+    g_trend = st.number_input("Google Trend (0-100)", value=50.0)
+    
+    st.subheader("💹 Kurs Valuta")
+    k_usdidr = st.number_input("USD to IDR", value=15600.0)
+    k_myr = st.number_input("MYR to USD", value=0.21, format="%.4f")
+    k_sgd = st.number_input("SGD to USD", value=0.74, format="%.4f")
+    k_thb = st.number_input("THB to USD", value=0.028, format="%.4f")
 
 with col2:
-    st.subheader("Komoditas Global")
-    global_crude_oil = st.number_input("Crude Oil (USD)", value=80.0)
-    global_natural_gas = st.number_input("Natural Gas (USD)", value=2.5)
-    global_coal = st.number_input("Coal (USD)", value=130.0)
-    global_palm_oil = st.number_input("Palm Oil (USD)", value=900.0)
-    global_sugar = st.number_input("Sugar (USD)", value=0.20)
-    global_wheat = st.number_input("Wheat (USD)", value=600.0)
+    st.subheader("🌎 Indikator Global")
+    g_oil = st.number_input("Minyak Mentah (Crude Oil)", value=80.0)
+    g_gas = st.number_input("Gas Alam", value=2.5)
+    g_coal = st.number_input("Batu Bara (Coal)", value=130.0)
+    g_palm = st.number_input("Minyak Sawit (CPO)", value=900.0)
+    g_sugar = st.number_input("Gula Dunia", value=0.20, format="%.4f")
+    g_wheat = st.number_input("Gandum Dunia", value=600.0)
 
-# --- PROSES PREDIKSI ---
-if st.button("Hitung Prediksi"):
-    # 1. Ekstraksi Fitur Waktu
+# =================================================================
+# 4. LOGIKA PREDIKSI
+# =================================================================
+if st.button("🚀 JALANKAN PREDIKSI", type="primary", use_container_width=True):
+    
+    # A. Preprocessing: Fitur Waktu
     month = selected_date.month
     day = selected_date.day
     week = selected_date.isocalendar()[1]
     day_of_week = selected_date.weekday()
 
-    # 2. Encoding Kategorikal
-    encoded_komo = art['le_komoditas'].transform([selected_komoditas])[0]
-    encoded_prov = art['le_provinsi'].transform([selected_provinsi])[0]
+    # B. Preprocessing: Encoding Kategorikal
+    enc_komo = artifacts['le_komoditas'].transform([selected_komo])[0]
+    enc_prov = artifacts['le_provinsi'].transform([selected_prov])[0]
 
-    # 3. Scaling Numerikal
-    # Ambil urutan fitur numerik dari scaler (14 fitur)
-    numerical_input = np.array([[
-        harga_lag_1, harga_lag_7, harga_lag_30, 
-        kurs_myrusd, kurs_sgdusd, kurs_thbusd, kurs_usdidr,
-        global_crude_oil, global_natural_gas, global_coal, 
-        global_palm_oil, global_sugar, global_wheat, google_trend
-    ]])
-    scaled_numerical = art['scaler'].transform(numerical_input)[0]
+    # C. Preprocessing: Scaling Numerikal (Urutan harus sesuai scaler)
+    num_vals = [
+        h_lag_1, h_lag_7, h_lag_30, 
+        k_myr, k_sgd, k_thb, k_usdidr,
+        g_oil, g_gas, g_coal, g_palm, g_sugar, g_wheat, g_trend
+    ]
+    scaled_vals = artifacts['scaler'].transform([num_vals])[0]
 
-    # 4. Gabungkan Semua Fitur Sesuai Urutan di feature_list.pkl
-    # Urutan: komoditas, provinsi, month, week, day, day_of_week, [14 numerik]
-    input_data = [encoded_komo, encoded_prov, month, week, day, day_of_week] + list(scaled_numerical)
+    # D. Gabungkan Menjadi 20 Fitur Sesuai feature_list.pkl
+    # Urutan: [komoditas, provinsi, month, week, day, day_of_week] + [14 numerik]
+    input_final = [enc_komo, enc_prov, month, week, day, day_of_week] + list(scaled_vals)
     
-    # 5. Prediksi
-    prediction_idx = art['model'].predict([input_data])[0]
-    prediction_label = art['target_encoder.pkl'.replace('.pkl', '')].classes_[prediction_idx] if hasattr(art['target_encoder'], 'classes_') else art['target_encoder'].inverse_transform([prediction_idx])[0]
+    # E. Jalankan Prediksi
+    pred_idx = artifacts['model'].predict([input_final])[0]
+    label = artifacts['target_encoder'].classes_[pred_idx]
+
+    # F. Visualisasi Hasil
+    st.markdown("---")
     
-    # Menampilkan Hasil
-    st.divider()
-    st.subheader("Hasil Analisis")
-    
-    color = "red" if prediction_label == "Tinggi" else "orange" if prediction_label == "Sedang" else "green"
-    
+    # Logika Warna
+    if label == "Tinggi":
+        bg, border, text_color = "#fef2f2", "#dc2626", "#dc2626"
+    elif label == "Sedang":
+        bg, border, text_color = "#fffbeb", "#d97706", "#d97706"
+    else:
+        bg, border, text_color = "#f0fdf4", "#16a34a", "#16a34a"
+
+    # Menampilkan Kotak Hasil
     st.markdown(f"""
-    <div style="padding:20px; border-radius:10px; background-color:#f0f2f6; border-left: 10px solid {color};">
-        <h2 style="margin:0;">Tingkat Harga: <span style="color:{color};">{prediction_label}</span></h2>
-        <p style="margin:10px 0 0 0;">Prediksi ini untuk <b>{selected_komoditas}</b> di wilayah <b>{selected_provinsi}</b> 
-        pada tanggal {selected_date.strftime('%d %B %Y')}.</p>
-    </div>
+        <div class="result-box" style="background-color: {bg}; border: 4px solid {border};">
+            <p class="result-text" style="font-size: 20px; margin: 0;">Prediksi Tingkat Harga:</p>
+            <h1 class="result-label" style="color: {text_color};">{label}</h1>
+            <div style="height: 2px; background: {border}; width: 100px; margin: 15px auto;"></div>
+            <p class="result-text" style="font-size: 16px;">
+                <b>{selected_komo}</b> di <b>{selected_prov}</b><br>
+                Target: {selected_date.strftime('%d %B %Y')}
+            </p>
+        </div>
     """, unsafe_allow_html=True)
 
-    # Probabilitas (Jika model mendukung)
+    # Probabilitas Chart
     try:
-        probs = art['model'].predict_proba([input_data])[0]
+        probs = artifacts['model'].predict_proba([input_final])[0]
+        st.subheader("📊 Analisis Probabilitas")
         prob_df = pd.DataFrame({
-            'Kategori': art['target_encoder'].classes_,
+            'Level': artifacts['target_encoder'].classes_,
             'Keyakinan (%)': [p * 100 for p in probs]
         })
-        st.write("### Probabilitas Prediksi")
-        st.bar_chart(prob_df.set_index('Kategori'))
+        st.bar_chart(prob_df.set_index('Level'))
     except:
         pass
 
 # Footer
 st.markdown("---")
-st.caption("Deployment by Your Name | Model by Teammate")
+st.caption("Deployment Selesai | Dikembangkan untuk Analisis Harga Komoditas Indonesia")
